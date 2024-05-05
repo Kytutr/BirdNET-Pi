@@ -160,6 +160,26 @@ if ! [ -L /etc/avahi/services/http.service ];then
   systemctl restart avahi-daemon.service
 fi
 
+# Add location autoupdate service if it ain't there
+if ! [ -f $HOME/BirdNET-Pi/templates/location_autoupdate.service ];then
+  sudo_with_user $HOME/BirdNET-Pi/birdnet/bin/pip3 install gpsdclient
+  sudo_with_user $HOME/BirdNET-Pi/birdnet/bin/pip3 install apscheduler
+  export PYTHON_VIRTUAL_ENV="$HOME/BirdNET-Pi/birdnet/bin/python3"
+  cat << EOF > $HOME/BirdNET-Pi/templates/location_autoupdate.service
+[Unit]
+Description=The gpsd based location autoupdate for BirdNET
+[Service]
+Restart=no
+Type=simple
+User=${USER}
+ExecStart=$PYTHON_VIRTUAL_ENV /usr/local/bin/location_autoupdate.py
+[Install]
+WantedBy=multi-user.target
+EOF
+  sudo -E chown $USER:$USER $HOME/BirdNET-Pi/templates/location_autoupdate.service
+  ln -sf $HOME/BirdNET-Pi/templates/location_autoupdate.service /usr/lib/systemd/system
+fi
+
 if grep -q ",gotty," "$HOME/BirdNET-Pi/templates/phpsysinfo.ini" &>/dev/null; then
   gottyservice="gotty-$(uname -m)"
   sed -i "s/,gotty,/,${gottyservice},/g" "$HOME/BirdNET-Pi/templates/phpsysinfo.ini"

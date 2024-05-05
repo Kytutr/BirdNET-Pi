@@ -29,6 +29,15 @@ Changes include:
  - Bump tflite_runtime to 2.11.0, it is faster
  - Rework daily_plot.py (chart_viewer) to run as a daemon to avoid the very expensive startup
  - Lots of fixes & cleanups
+ - Bump apprise version, so more notification type are possible
+ - Fix: Setting Excluded/Custom species from the UI, that have a ' now works
+ - Fix: Setting apprise notification body and apprise notification title that include 'special' characters like `"{}` now is possible. So you can send json now
+ - Fix: add missing languages for new model
+ - Fix: Daily Chart was not including new detections due to caching
+ - Fix: changing advanced settings was not updating on a fresh install ed. CHANNELS, RECORDING_LENGTH, ... simplify
+ - Fix: PrivacyThreshold now works as intended
+ - Support for 'Species range model V2.4 - V2'
+ - **Experimental support** for automatic updates of location utilizing gpsd service. It requires GPS device (USB looger, modem with GNSS capabilities) to be connected and configured in gpsd.
 
 !! note: see 'Migrating' on how to migrate from mcguirepr89
 
