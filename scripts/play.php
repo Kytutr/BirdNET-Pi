@@ -25,12 +25,15 @@ if(isset($_GET['deletefile'])) {
   ensure_db_ok($statement1);
   $statement1->bindValue(':file_name', explode("/", $_GET['deletefile'])[2]);
   $file_pointer = $home."/BirdSongs/Extracted/By_Date/".$_GET['deletefile'];
-  if (!exec("sudo rm $file_pointer && sudo rm $file_pointer.png")) {
+  if (!exec("sudo rm $file_pointer 2>&1 && sudo rm $file_pointer.png 2>&1", $output)) {
     echo "OK";
   } else {
-    echo "Error";
+    echo "Error - file deletion failed : " . implode(", ", $output) . "<br>";
   }
   $result1 = $statement1->execute();
+  if ($result1 === false || $db_writable->changes() === 0) {
+    echo "Error - database line deletion failed : " . $db_writable->lastErrorMsg();
+  }
   $db_writable->close();
   die();
 }
@@ -171,7 +174,7 @@ function deleteDetection(filename,copylink=false) {
           location.reload();
         }
       } else {
-        alert("Database busy.")
+        alert(this.responseText);
       }
     }
     xhttp.open("GET", "play.php?deletefile="+filename, true);
@@ -518,9 +521,11 @@ echo "<table>
         $filename_formatted = $date."/".$comname."/".$results['File_Name'];
 
         // add disk_check_exclude.txt lines into an array for grepping
-        $fp = @fopen($home."/BirdNET-Pi/scripts/disk_check_exclude.txt", 'r'); 
+        $fp = @fopen($home."/BirdNET-Pi/scripts/disk_check_exclude.txt", 'r');
         if ($fp) {
           $disk_check_exclude_arr = explode("\n", fread($fp, filesize($home."/BirdNET-Pi/scripts/disk_check_exclude.txt")));
+        } else {
+          $disk_check_exclude_arr = [];
         }
 
         if($config["FULL_DISK"] == "purge") {
