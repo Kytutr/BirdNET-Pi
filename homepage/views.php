@@ -63,6 +63,7 @@ elseif ($config["LONGITUDE"] == "0.000") {
   <button type="submit" name="view" value="Species Stats" form="views">Best Recordings</button>
   <button type="submit" name="view" value="Streamlit" form="views">Species Stats</button>
   <button type="submit" name="view" value="Daily Charts" form="views">Daily Charts</button>
+  <button type="submit" name="view" value="Weekly Report" form="views">Weekly Report</button>
   <button type="submit" name="view" value="Recordings" form="views">Recordings</button>
   <button type="submit" name="view" value="View Log" form="views">View Log</button>
   <button type="submit" name="view" value="Tools" form="views">Tools<?php if(isset($_SESSION['behind']) && intval($_SESSION['behind']) >= 50 && ($config['SILENCE_UPDATE_INDICATOR'] != 1)){ $updatediv = ' <div class="updatenumber">'.$_SESSION["behind"].'</div>'; } else { $updatediv = ""; } echo $updatediv; ?></button>
@@ -136,7 +137,7 @@ if(isset($_GET['view'])){
       <button type=\"submit\" name=\"view\" value=\"System Controls\" form=\"views\">System Controls".$updatediv."</button>
       <button type=\"submit\" name=\"view\" value=\"Services\" form=\"views\">Services</button>
       <button type=\"submit\" name=\"view\" value=\"File\" form=\"views\">File Manager</button>
-      <a href=\"scripts/adminer.php\" target=\"_blank\"><button type=\"submit\" form=\"\">Database Maintenance</button></a>
+      <button type=\"submit\" name=\"view\" value=\"Adminer\" form=\"views\">Database Maintenance</button>
       <button type=\"submit\" name=\"view\" value=\"Webterm\" form=\"views\">Web Terminal</button>
       <button type=\"submit\" name=\"view\" value=\"Included\" form=\"views\">Custom Species List</button>
       <button type=\"submit\" name=\"view\" value=\"Excluded\" form=\"views\">Excluded Species List</button>
@@ -204,6 +205,9 @@ if(isset($_GET['view'])){
   }
   if($_GET['view'] == "File"){
     echo "<iframe src='scripts/filemanager/filemanager.php'></iframe>";
+  }
+  if($_GET['view'] == "Adminer"){
+    echo "<iframe src='scripts/adminer.php'></iframe>";
   }
   if($_GET['view'] == "Webterm"){
     ensure_authenticated('You cannot access the web terminal');
