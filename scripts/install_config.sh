@@ -52,7 +52,7 @@ LOCATION_AUTOUPDATE_THRESHOLD=0.0002
 
 MODEL=BirdNET_GLOBAL_6K_V2.4_Model_FP16
 SF_THRESH=0.03
-DATA_MODEL_VERSION=2
+DATA_MODEL_VERSION=1
 
 #---------------------  BirdWeather Station Information -----------------------#
 #_____________The variable below can be set to have your BirdNET-Pi____________#
