@@ -200,6 +200,7 @@ fi
 if [ -L /usr/local/bin/analyze.py ];then
   rm -f /usr/local/bin/analyze.py
 fi
+
 if [ -L /usr/local/bin/birdnet_analysis.sh ];then
   rm -f /usr/local/bin/birdnet_analysis.sh
 fi
