@@ -18,6 +18,7 @@ I've been building on [mcguirepr89's](https://github.com/mcguirepr89/BirdNET-Pi)
 
 Changes include:
 
+ - Backup & Restore
  - Web ui is much more responsive
  - Daily charts now include all species, not just top/bottom 10
  - Bump apprise version, so more notification type are possible
@@ -145,7 +146,36 @@ Please take a look at the [wiki](https://github.com/mcguirepr89/BirdNET-Pi/wiki)
 
 ## Updating 
 
-Use the web interface and go to "Tools" > "System Controls" > "Update." If you encounter any issues with that, or suspect that the update did not work for some reason, please save its output and post it in an issue where we can help.
+Use the web interface and go to "Tools" > "System Controls" > "Update". If you encounter any issues with that, or suspect that the update did not work for some reason, please save its output and post it in an issue where we can help.
+
+## Backup and Restore
+Use the web interface and go to "Tools" > "System Controls" > "Backup" or "Restore". Backup/Restore is primary meant for migrating your data for one system to another. Since the time required to create or restore a backup depends on the size of the data set and the speed of the storage, this could take quite a while.
+
+Alternatively, the backup script can be used directly. These examples assume the backup medium is mounted on `/mnt`
+
+To backup:
+```commandline
+./scripts/backup_data.sh -a backup -f /mnt/birds/backup-2024-07-09.tar
+```
+To restore:
+```commandline
+./scripts/backup_data.sh -a restore -f /mnt/birds/backup-2024-07-09.tar
+```
+
+## x86_64 support*
+***x86_64 is not supported.** Not officially anyway. It is mainly there for developers or otherwise more Linux savvy people.
+That being said, some pointers:
+- Use Debian 12
+- The user needs passwordless sudo
+- We use a custom TFLite build that needs AVX2 support. So Intel Haswell or newer, not sure what that means for AMD cpu's, let me know if you do.
+- Some people get around the previous point by uninstalling `tflite_runtime` and replacing with `tensorflow` in the `./birdnet` venv. But beware: analysis will be slower, and the older v1 model won't work.
+
+For Proxmox, a user has reported adding this in their `cpu-models.conf`, in order for the custom TFLite build to work.
+```
+cpu-model: BirdNet
+    flags +sse4.1
+    reported-model host
+```
 
 ## Uninstallation
 ```
@@ -227,4 +257,4 @@ Current database languages include the list below:
 
 
 ## :thinking:
-Are you a lucky ducky with an extra Raspberry Pi 4B lying around? [Here's an idea!](https://foldingathome.org/alternative-downloads)
+Are you a lucky ducky with a spare Raspberry Pi? [Try Folding@home!](https://foldingathome.org/)

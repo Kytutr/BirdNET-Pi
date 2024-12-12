@@ -111,7 +111,7 @@ if ! which gcc &>/dev/null;then
 fi
 
 apprise_version=$($HOME/BirdNET-Pi/birdnet/bin/python3 -c "import apprise; print(apprise.__version__)")
-[[ $apprise_version != "1.8.0" ]] && sudo_with_user $HOME/BirdNET-Pi/birdnet/bin/pip3 install apprise==1.8.0
+[[ $apprise_version != "1.9.0" ]] && sudo_with_user $HOME/BirdNET-Pi/birdnet/bin/pip3 install apprise==1.9.0
 version=$($HOME/BirdNET-Pi/birdnet/bin/python3 -c "import streamlit; print(streamlit.__version__)")
 [[ $version != "1.31.0" ]] && sudo_with_user $HOME/BirdNET-Pi/birdnet/bin/pip3 install streamlit==1.31.0
 version=$($HOME/BirdNET-Pi/birdnet/bin/python3 -c "import seaborn; print(seaborn.__version__)")
@@ -130,6 +130,7 @@ if ! which inotifywait &>/dev/null;then
   apt-get -y install inotify-tools
 fi
 
+install_tmp_mount
 remove_unit_file birdnet_server.service /usr/local/bin/server.py
 remove_unit_file extraction.service /usr/local/bin/extract_new_birdsounds.sh
 
@@ -171,7 +172,6 @@ if ! [ -L /etc/avahi/services/http.service ];then
   cp -f $HOME/BirdNET-Pi/templates/http.service /etc/avahi/services/
   systemctl restart avahi-daemon.service
 fi
-
 # Add location autoupdate service if it ain't there
 if ! [ -f $HOME/BirdNET-Pi/templates/location_autoupdate.service ];then
   sudo_with_user $HOME/BirdNET-Pi/birdnet/bin/pip3 install gpsdclient
@@ -190,11 +190,6 @@ WantedBy=multi-user.target
 EOF
   sudo -E chown $USER:$USER $HOME/BirdNET-Pi/templates/location_autoupdate.service
   ln -sf $HOME/BirdNET-Pi/templates/location_autoupdate.service /usr/lib/systemd/system
-fi
-
-if grep -q ",gotty," "$HOME/BirdNET-Pi/templates/phpsysinfo.ini" &>/dev/null; then
-  gottyservice="gotty-$(uname -m)"
-  sed -i "s/,gotty,/,${gottyservice},/g" "$HOME/BirdNET-Pi/templates/phpsysinfo.ini"
 fi
 
 if [ -L /usr/local/bin/analyze.py ];then

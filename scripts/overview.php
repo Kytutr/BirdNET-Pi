@@ -67,6 +67,7 @@ if(isset($_GET['ajax_detections']) && $_GET['ajax_detections'] == "true" && isse
   while($mostrecent = $result4->fetchArray(SQLITE3_ASSOC)) {
     $comname = preg_replace('/ /', '_', $mostrecent['Com_Name']);
     $sciname = preg_replace('/ /', '_', $mostrecent['Sci_Name']);
+    $comnamegraph = str_replace("'", "\'", $mostrecent['Com_Name']);
     $comname = preg_replace('/\'/', '', $comname);
     $filename = "By_Date/".$mostrecent['Date']."/".$comname."/".$mostrecent['File_Name'];
 
@@ -133,7 +134,7 @@ if(isset($_GET['ajax_detections']) && $_GET['ajax_detections'] == "true" && isse
                   <a href="<?php $info_url = get_info_url($mostrecent['Sci_Name']); $url = $info_url['URL']; echo $url ?>" target="_blank">
                   <img style="width: unset !important; display: inline; height: 1em; cursor: pointer;" title="Info" src="images/info.png" width="25"></a>
                   <a href="https://wikipedia.org/wiki/<?php echo $sciname;?>" target="_blank"><img style="width: unset !important; display: inline; height: 1em; cursor: pointer;" title="Wikipedia" src="images/wiki.png" width="25"></a>
-                  <img style="width: unset !important;display: inline;height: 1em;cursor:pointer" title="View species stats" onclick="generateMiniGraph(this, '<?php echo $comname; ?>')" width=25 src="images/chart.svg">
+                  <img style="width: unset !important;display: inline;height: 1em;cursor:pointer" title="View species stats" onclick="generateMiniGraph(this, '<?php echo $comnamegraph; ?>')" width=25 src="images/chart.svg">
                   <br>Confidence: <?php echo $percent = round((float)round($mostrecent['Confidence'],2) * 100 ) . '%';?><br></div><br>
                   <video style="margin-top:10px" onplay='setLiveStreamVolume(0)' onended='setLiveStreamVolume(1)' onpause='setLiveStreamVolume(1)' controls poster="<?php echo $filename.".png";?>" preload="none" title="<?php echo $filename;?>"><source src="<?php echo $filename;?>"></video></td>
               </form>
@@ -151,56 +152,103 @@ if(isset($_GET['ajax_detections']) && $_GET['ajax_detections'] == "true" && isse
   die();
 }
 
+function get_chart_data($db, $force_regen = false) {
+  if ($force_regen || !isset($_SESSION['chart_data'])) {
+    $statement = $db->prepare('SELECT COUNT(*) FROM detections');
+    ensure_db_ok($statement);
+    $result = $statement->execute();
+    $totalcount = $result->fetchArray(SQLITE3_ASSOC);
+
+    $statement2 = $db->prepare('SELECT COUNT(*) FROM detections WHERE Date == DATE(\'now\', \'localtime\')');
+    ensure_db_ok($statement2);
+    $result2 = $statement2->execute();
+    $todaycount = $result2->fetchArray(SQLITE3_ASSOC);
+
+    $statement3 = $db->prepare('SELECT COUNT(*) FROM detections WHERE Date == Date(\'now\', \'localtime\') AND TIME >= TIME(\'now\', \'localtime\', \'-1 hour\')');
+    ensure_db_ok($statement3);
+    $result3 = $statement3->execute();
+    $hourcount = $result3->fetchArray(SQLITE3_ASSOC);
+
+    $statement5 = $db->prepare('SELECT COUNT(DISTINCT(Com_Name)) FROM detections WHERE Date == Date(\'now\',\'localtime\')');
+    ensure_db_ok($statement5);
+    $result5 = $statement5->execute();
+    $speciestally = $result5->fetchArray(SQLITE3_ASSOC);
+
+    $statement6 = $db->prepare('SELECT COUNT(DISTINCT(Com_Name)) FROM detections');
+    ensure_db_ok($statement6);
+    $result6 = $statement6->execute();
+    $totalspeciestally = $result6->fetchArray(SQLITE3_ASSOC);
+
+    // Store the data in session to be reused by other charts
+    $_SESSION['chart_data'] = [
+      'totalcount' => $totalcount,
+      'todaycount' => $todaycount,
+      'hourcount' => $hourcount,
+      'speciestally' => $speciestally,
+      'totalspeciestally' => $totalspeciestally
+    ];
+  }
+
+  return $_SESSION['chart_data'];
+}
+
 if(isset($_GET['ajax_left_chart']) && $_GET['ajax_left_chart'] == "true") {
 
-$statement = $db->prepare('SELECT COUNT(*) FROM detections');
-ensure_db_ok($statement);
-$result = $statement->execute();
-$totalcount = $result->fetchArray(SQLITE3_ASSOC);
-
-$statement3 = $db->prepare('SELECT COUNT(*) FROM detections WHERE Date == Date(\'now\', \'localtime\') AND TIME >= TIME(\'now\', \'localtime\', \'-1 hour\')');
-ensure_db_ok($statement3);
-$result3 = $statement3->execute();
-$hourcount = $result3->fetchArray(SQLITE3_ASSOC);
-
-$statement5 = $db->prepare('SELECT COUNT(DISTINCT(Com_Name)) FROM detections WHERE Date == Date(\'now\',\'localtime\')');
-ensure_db_ok($statement5);
-$result5 = $statement5->execute();
-$speciestally = $result5->fetchArray(SQLITE3_ASSOC);
-
-$statement6 = $db->prepare('SELECT COUNT(DISTINCT(Com_Name)) FROM detections');
-ensure_db_ok($statement6);
-$result6 = $statement6->execute();
-$totalspeciestally = $result6->fetchArray(SQLITE3_ASSOC);
-  
+  // Force the data to regenerate and store it in session
+  $chart_data = get_chart_data($db, true);
 ?>
 <table>
   <tr>
     <th>Total</th>
-    <td><?php echo $totalcount['COUNT(*)'];?></td>
+    <td><?php echo $chart_data['totalcount']['COUNT(*)'];?></td>
   </tr>
   <tr>
     <th>Today</th>
-    <td><form action="" method="GET"><button type="submit" name="view" value="Todays Detections"><?php echo $todaycount['COUNT(*)'];?></button></td>
+    <td><form action="" method="GET"><button type="submit" name="view" value="Todays Detections"><?php echo $chart_data['todaycount']['COUNT(*)'];?></button></td>
     </form>
   </tr>
   <tr>
     <th>Last Hour</th>
-    <td><?php echo $hourcount['COUNT(*)'];?></td>
+    <td><?php echo $chart_data['hourcount']['COUNT(*)'];?></td>
   </tr>
   <tr>
     <th>Species Detected Today</th>
-    <td><form action="" method="GET"><input type="hidden" name="view" value="Recordings"><button type="submit" name="date" value="<?php echo date('Y-m-d');?>"><?php echo $speciestally['COUNT(DISTINCT(Com_Name))'];?></button></td>
+    <td><form action="" method="GET"><input type="hidden" name="view" value="Recordings"><button type="submit" name="date" value="<?php echo date('Y-m-d');?>"><?php echo $chart_data['speciestally']['COUNT(DISTINCT(Com_Name))'];?></button></td>
     </form>
   </tr>
   <tr>
     <th>Total Number of Species</th>
-    <td><form action="" method="GET"><button type="submit" name="view" value="Species Stats"><?php echo $totalspeciestally['COUNT(DISTINCT(Com_Name))'];?></button></td>
+    <td><form action="" method="GET"><button type="submit" name="view" value="Species Stats"><?php echo $chart_data['totalspeciestally']['COUNT(DISTINCT(Com_Name))'];?></button></td>
     </form>
   </tr>
 </table>
 <?php
-die();
+  die();
+}
+
+if(isset($_GET['ajax_center_chart']) && $_GET['ajax_center_chart'] == "true") {
+
+  // Retrieve the cached data from session without regenerating
+  $chart_data = get_chart_data($db);
+?>
+  <table><tr>
+  <th>Total</th>
+  <th>Today</th>
+  <th>Last Hour</th>
+  <th>Species Total</th>
+  <th>Species Today</th>
+      </tr>
+      <tr>
+      <td><?php echo $chart_data['totalcount']['COUNT(*)'];?></td>
+      <td><form action="" method="GET"><input type="hidden" name="view" value="Todays Detections"><?php echo $chart_data['todaycount']['COUNT(*)'];?></td></form>
+      <td><?php echo $chart_data['hourcount']['COUNT(*)'];?></td>
+      <td><form action="" method="GET"><button type="submit" name="view" value="Species Stats"><?php echo $chart_data['totalspeciestally']['COUNT(DISTINCT(Com_Name))'];?></button></td></form>
+      <td><form action="" method="GET"><input type="hidden" name="view" value="Recordings"><button type="submit" name="date" value="<?php echo date('Y-m-d');?>"><?php echo $chart_data['speciestally']['COUNT(DISTINCT(Com_Name))'];?></button></td></form>
+  </tr>
+  </table>
+
+<?php
+  die();
 }
 
 if (get_included_files()[0] === __FILE__) {
@@ -263,6 +311,8 @@ if (get_included_files()[0] === __FILE__) {
 <div class="left-column">
 </div>
 <div class="right-column">
+<div class="center-column">
+</div>
 <div class="chart">
 <?php
 $refresh = $config['RECORDING_LENGTH'];
@@ -319,16 +369,27 @@ function loadLeftChart() {
   xhttp.onload = function() {
     if(this.responseText.length > 0 && !this.responseText.includes("Database is busy")) {
       document.getElementsByClassName("left-column")[0].innerHTML = this.responseText;
+      loadCenterChart();
     }
   }
   xhttp.open("GET", "overview.php?ajax_left_chart=true", true);
+  xhttp.send();
+}
+function loadCenterChart() {
+  const xhttp = new XMLHttpRequest();
+  xhttp.onload = function() {
+    if(this.responseText.length > 0 && !this.responseText.includes("Database is busy")) {
+      document.getElementsByClassName("center-column")[0].innerHTML = this.responseText;
+    }
+  }
+  xhttp.open("GET", "overview.php?ajax_center_chart=true", true);
   xhttp.send();
 }
 function refreshTopTen() {
   const xhttp = new XMLHttpRequest();
   xhttp.onload = function() {
   if(this.responseText.length > 0 && !this.responseText.includes("Database is busy") && !this.responseText.includes("No Detections") || previous_detection_identifier == undefined) {
-    document.getElementById("chart").src = "Charts/"+this.responseText+"?nocache="+Date.now();
+    if (document.getElementById("chart")) {document.getElementById("chart").src = "Charts/"+this.responseText+"?nocache="+Date.now();}
   }
   }
   xhttp.open("GET", "overview.php?fetch_chart_string=true", true);
@@ -399,6 +460,7 @@ document.addEventListener("visibilitychange", function() {
     clearInterval(i_fn2);
     if (customImage) clearInterval(i_fn3);
   } else {
+    loadDetectionIfNewExists();
     startAutoRefresh();
   }
 });

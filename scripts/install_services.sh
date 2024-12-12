@@ -357,8 +357,6 @@ EOF
 install_phpsysinfo() {
   sudo -u ${USER} git clone https://github.com/phpsysinfo/phpsysinfo.git \
     ${HOME}/phpsysinfo
-  gottyservice="gotty-$(uname -m)"
-  sed -i "s/,gotty,/,${gottyservice},/g" "$HOME"/BirdNET-Pi/templates/phpsysinfo.ini
 }
 
 config_icecast() {
@@ -420,6 +418,7 @@ install_services() {
   set_hostname
   update_etc_hosts
   set_login
+  install_tmp_mount
 
   install_depends
   install_scripts
