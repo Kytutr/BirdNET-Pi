@@ -1,4 +1,3 @@
-import datetime
 import logging
 import math
 import operator
@@ -24,7 +23,8 @@ log = logging.getLogger(__name__)
 userDir = os.path.expanduser('~')
 INTERPRETER, M_INTERPRETER, INCLUDE_LIST, EXCLUDE_LIST = (None, None, None, None)
 PREDICTED_SPECIES_LIST = []
-model, priv_thresh, sf_thresh = (None, None, None)
+WEEK = None
+model, sf_thresh = (None, None)
 
 mdata, mdata_params = (None, None)
 
@@ -93,9 +93,6 @@ def loadMetaModel():
 
 
 def predictFilter(lat, lon, week):
-
-    global M_INTERPRETER
-
     # Does interpreter exist?
     if M_INTERPRETER is None:
         loadMetaModel()
@@ -135,9 +132,6 @@ def predictSpeciesList(lat, lon, week):
             # if there's a custom user-made include list, we only want to use the species in that
             if (len(INCLUDE_LIST) == 0):
                 PREDICTED_SPECIES_LIST.append(s[1])
-    WHITELIST_LIST = loadCustomSpeciesList(os.path.expanduser("~/BirdNET-Pi/whitelist_species_list.txt"))
-    for species in WHITELIST_LIST:
-        PREDICTED_SPECIES_LIST.append(species)
 
 
 def loadCustomSpeciesList(path):
@@ -211,7 +205,6 @@ def custom_sigmoid(x, sensitivity=1.0):
 
 
 def predict(sample, sensitivity):
-    global INTERPRETER
     # Make a prediction
     INTERPRETER.set_tensor(INPUT_LAYER_INDEX, np.array(sample[0], dtype='float32'))
     if model == "BirdNET_6K_GLOBAL_MODEL":
@@ -228,64 +221,97 @@ def predict(sample, sensitivity):
     # Sort by score
     p_sorted = sorted(p_labels.items(), key=operator.itemgetter(1), reverse=True)
 
-    human_cutoff = max(10, int(len(p_sorted) * priv_thresh / 100.0))
-
-    log.debug("DATABASE SIZE: %d", len(p_sorted))
-    log.debug("HUMAN-CUTOFF AT: %d", human_cutoff)
-
-    for i in range(min(10, len(p_sorted))):
-        if p_sorted[i][0] == 'Human_Human':
-            with open(userDir + '/BirdNET-Pi/HUMAN.txt', 'a') as rfile:
-                rfile.write(str(datetime.datetime.now()) + str(p_sorted[i]) + ' ' + str(human_cutoff) + '\n')
-
-    return p_sorted[:human_cutoff]
+    return p_sorted
 
 
 def analyzeAudioData(chunks, lat, lon, week, sens, overlap,):
-    global INTERPRETER
+    global WEEK
 
     sensitivity = max(0.5, min(1.0 - (sens - 1.0), 1.5))
 
-    detections = {}
+    detections = []
     start = time.time()
     log.info('ANALYZING AUDIO...')
 
     if model == "BirdNET_GLOBAL_6K_V2.4_Model_FP16":
-        if len(PREDICTED_SPECIES_LIST) == 0 or len(INCLUDE_LIST) != 0:
+        if week != WEEK or len(INCLUDE_LIST) != 0:
+            WEEK = week
             predictSpeciesList(lat, lon, week)
 
     mdata = get_metadata(lat, lon, week)
 
     # Parse every chunk
-    pred_start = 0.0
     for c in chunks:
-
         # Prepare as input signal
         sig = np.expand_dims(c, 0)
 
         # Make prediction
         p = predict([sig, mdata], sensitivity)
-#        print("PPPPP",p)
-        HUMAN_DETECTED = False
+        log.debug("PPPPP: %s", p)
+        detections.append(p)
 
-        # Catch if Human is recognized
-        for x in range(len(p)):
-            if "Human" in p[x][0]:
-                HUMAN_DETECTED = True
-
-        # Save result and timestamp
+    labeled = {}
+    pred_start = 0.0
+    for p in filter_humans(detections):
+        # Save timestamp and result
         pred_end = pred_start + 3.0
-
-        # If human detected set all detections to human to make sure voices are not saved
-        if HUMAN_DETECTED is True:
-            p = [('Human_Human', 0.0)] * 10
-
-        detections[str(pred_start) + ';' + str(pred_end)] = p
+        labeled[str(pred_start) + ';' + str(pred_end)] = p
 
         pred_start = pred_end - overlap
 
     log.info('DONE! Time %.2f SECONDS', time.time() - start)
-    return detections
+    return labeled
+
+
+def filter_humans(detections):
+    conf = get_settings()
+    priv_thresh = conf.getfloat('PRIVACY_THRESHOLD')
+    human_cutoff = max(10, int(len(detections[0]) * priv_thresh / 100.0))
+    log.debug("DATABASE SIZE: %d", len(detections[0]))
+    log.debug("HUMAN-CUTOFF AT: %d", human_cutoff)
+
+    censored_detections = []
+    for detection in detections:
+        p = detection[:human_cutoff]
+        human_detected = False
+        # Catch if Human is recognized in any of the predictions
+        for x in p:
+            if 'Human' in x[0]:
+                human_detected = True
+
+        # If human detected set detection to human to make sure voices are not saved
+        if human_detected is True:
+            p = [('Human_Human', 0.0)]
+        else:
+            p = p[:10]
+
+        censored_detections.append(p)
+
+    # now overwrite detections that have a human neighbour too
+    try:
+        extraction_length = conf.getint('EXTRACTION_LENGTH')
+    except ValueError:
+        extraction_length = 6
+    if extraction_length > 9:
+        log.warning("EXTRACTION_LENGTH is set to %d. Privacy filter might miss human sound, "
+                    "if you care about privacy, set EXTRACTION_LENGTH to below 9 or leave empty.", extraction_length)
+    human_neighbour_mask = [False] * len(censored_detections)
+    for i, detection in enumerate(censored_detections):
+        if i != 0:
+            if censored_detections[i - 1][0][0] == 'Human_Human':
+                human_neighbour_mask[i] = True
+        if i != len(censored_detections) - 1:
+            if censored_detections[i + 1][0][0] == 'Human_Human':
+                human_neighbour_mask[i] = True
+
+    clean_detections = []
+    for i, (has_human_neighbour, detection) in enumerate(zip(human_neighbour_mask, censored_detections)):
+        if has_human_neighbour and detection[0][0] != 'Human_Human':
+            log.debug('Overwriting detection %d %s - Has Human neighbour', i + 1, detection[0])
+            detection = [('Human_Human', 0.0)]
+        clean_detections.append(detection)
+
+    return clean_detections
 
 
 def get_metadata(lat, lon, week):
@@ -301,18 +327,18 @@ def get_metadata(lat, lon, week):
 
 def load_global_model():
     global INTERPRETER
-    global model, priv_thresh, sf_thresh
+    global model, sf_thresh
     conf = get_settings()
     model = conf['MODEL']
-    priv_thresh = conf.getfloat('PRIVACY_THRESHOLD')
     sf_thresh = conf.getfloat('SF_THRESH')
     INTERPRETER = loadModel()
 
 
 def run_analysis(file):
-    global INCLUDE_LIST, EXCLUDE_LIST
+    global INCLUDE_LIST, EXCLUDE_LIST, WHITELIST_LIST
     INCLUDE_LIST = loadCustomSpeciesList(os.path.expanduser("~/BirdNET-Pi/include_species_list.txt"))
     EXCLUDE_LIST = loadCustomSpeciesList(os.path.expanduser("~/BirdNET-Pi/exclude_species_list.txt"))
+    WHITELIST_LIST = loadCustomSpeciesList(os.path.expanduser("~/BirdNET-Pi/whitelist_species_list.txt"))
 
     conf = get_settings()
 
@@ -335,7 +361,7 @@ def run_analysis(file):
                     log.warning("Excluded as INCLUDE_LIST is active but this species is not in it: %s", entry[0])
                 elif entry[0] in EXCLUDE_LIST and len(EXCLUDE_LIST) != 0:
                     log.warning("Excluded as species in EXCLUDE_LIST: %s", entry[0])
-                elif entry[0] not in PREDICTED_SPECIES_LIST and len(PREDICTED_SPECIES_LIST) != 0:
+                elif entry[0] not in PREDICTED_SPECIES_LIST and len(PREDICTED_SPECIES_LIST) != 0 and entry[0] not in WHITELIST_LIST:
                     log.warning("Excluded as below Species Occurrence Frequency Threshold: %s", entry[0])
                 else:
                     d = Detection(
