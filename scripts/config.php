@@ -156,7 +156,7 @@ if(isset($_GET["latitude"])){
   $contents = preg_replace("/APPRISE_WEEKLY_REPORT=.*/", "APPRISE_WEEKLY_REPORT=$apprise_weekly_report", $contents);
   $contents = preg_replace("/IMAGE_PROVIDER=.*/", "IMAGE_PROVIDER=$image_provider", $contents);
   $contents = preg_replace("/FLICKR_API_KEY=.*/", "FLICKR_API_KEY=$flickr_api_key", $contents);
-  if(strlen($language) == 2){
+  if(strlen($language) == 2 || strlen($language) == 5){
     $contents = preg_replace("/DATABASE_LANG=.*/", "DATABASE_LANG=$language", $contents);
   }
   $contents = preg_replace("/INFO_SITE=.*/", "INFO_SITE=$info_site", $contents);
@@ -203,23 +203,9 @@ if(isset($_GET["latitude"])){
 }
 
 if(isset($_GET['sendtest']) && $_GET['sendtest'] == "true") {
-  $db = new SQLite3($home."/BirdNET-Pi/scripts/birds.db", SQLITE3_OPEN_READONLY);
-  $db->busyTimeout(1000);
-  $statement0 = $db->prepare('SELECT * FROM detections ORDER BY Date DESC, Time DESC LIMIT 1');
-  $result0 = $statement0->execute();
-  while($todaytable=$result0->fetchArray(SQLITE3_ASSOC))
-  {
-    $detection = json_encode($todaytable);
-  }
-
   $conf = $_GET['apprise_config'];
   $title = $_GET['apprise_notification_title'];
   $body = $_GET['apprise_notification_body'];
-
-  $temp_det = tmpfile();
-  $t_det_path = stream_get_meta_data($temp_det)['uri'];
-  chmod($t_det_path, 0644);
-  fwrite($temp_det, $detection);
 
   $temp_conf = tmpfile();
   $t_conf_path = stream_get_meta_data($temp_conf)['uri'];
@@ -231,10 +217,9 @@ if(isset($_GET['sendtest']) && $_GET['sendtest'] == "true") {
   chmod($t_body_path, 0644);
   fwrite($temp_body, $body);
 
-  $cmd = "sudo -u $user $home/BirdNET-Pi/birdnet/bin/python3 $home/BirdNET-Pi/scripts/send_test_notification.py --body $t_body_path --config $t_conf_path --title '" . escapeshellcmd($title) . "' --detection $t_det_path 2>&1";
+  $cmd = "sudo -u $user $home/BirdNET-Pi/birdnet/bin/python3 $home/BirdNET-Pi/scripts/send_test_notification.py --body $t_body_path --config $t_conf_path --title '" . escapeshellcmd($title) . "' 2>&1";
   $ret = shell_exec($cmd);
   echo "<pre class=\"bash\">".$ret."</pre>";
-  fclose($temp_det);
   fclose($temp_conf);
   fclose($temp_body);
 
@@ -305,7 +290,7 @@ function sendTestNotification(e) {
       <label for="data_model_version">Species range model V2.4 - V2</label>  [ <a target="_blank" href="https://github.com/kahst/BirdNET-Analyzer/discussions/234">Info here</a> ]<br>
       <label for="sf_thresh">Species Occurrence Frequency Threshold [0.0005, 0.99]: </label>
       <input name="sf_thresh" type="number" style="width:5em;" max="0.99" min="0.0005" step="any" value="<?php print($config['SF_THRESH']);?>"/> <span onclick="document.getElementById('sfhelp').style.display='unset'" style="text-decoration:underline;cursor:pointer">[more info]</span><br>
-      <p id="sfhelp" style='display:none'>This value is used by the model to constrain the list of possible species that it will try to detect, given the minimum occurrence frequency. A 0.03 threshold means that for a species to be included in this list, it needs to, on average, be seen on at least 3% of historically submitted eBird checklists for your given lat/lon/current week of year. So, the lower the threshold, the rarer the species it will include.<br><img style='width:75%;padding-top:5px;padding-bottom:5px' alt="BirdNET-Pi new model detection flowchart" title="BirdNET-Pi new model detection flowchart" src="https://i.imgur.com/8YEAuSA.jpeg">
+      <p id="sfhelp" style='display:none'>This value is used by the model to constrain the list of possible species that it will try to detect, given the minimum occurrence frequency. A 0.03 threshold means that for a species to be included in this list, it needs to, on average, be seen on at least 3% of historically submitted eBird checklists for your given lat/lon/current week of year. So, the lower the threshold, the rarer the species it will include.<br><img style='max-width:100%;padding-top:5px;padding-bottom:5px' alt="BirdNET-Pi new model detection flowchart" title="BirdNET-Pi new model detection flowchart" src="images/BirdNET-Pi_nm_flowchart.alpha.png">
         <br>If you'd like to tinker with this threshold value and see which species make it onto the list, <?php if($config['MODEL'] == "BirdNET_6K_GLOBAL_MODEL"){ ?>please click "Update Settings" at the very bottom of this page to install the appropriate label file, then come back here and you'll be able to use the Species List Tester.<?php } else { ?>you can use this tool: <button type="button" class="testbtn" id="openModal">Species List Tester</button><?php } ?></p>
       </span>
 
@@ -456,17 +441,17 @@ function runProcess() {
       </td></tr></table><br>
       <table class="settingstable"><tr><td>
       <h2>BirdWeather</h2>
-      <label for="birdweather_id">BirdWeather ID: </label>
+      <label for="birdweather_id">BirdWeather Token: </label>
       <input name="birdweather_id" type="text" value="<?php print($config['BIRDWEATHER_ID']);?>" /><br>
            <p><a href="https://app.birdweather.com" target="_blank">BirdWeather.com</a> is a weather map for bird sounds. 
         Stations around the world supply audio and video streams to BirdWeather where they are then analyzed by BirdNET 
         and compared to eBird Grid data. BirdWeather catalogues the bird audio and spectrogram visualizations so that you 
         can listen to, view, and read about birds throughout the world. <br><br> 
-        To request a BirdWeather ID, You'll first need to create an account - <a href="https://app.birdweather.com/login" target="_blank">https://app.birdweather.com/</a><br>
+        To request a BirdWeather Token, You'll first need to create an account - <a href="https://app.birdweather.com/login" target="_blank">https://app.birdweather.com/</a><br>
         Once that's done - you can go to - <a href="https://app.birdweather.com/account/stations" target="_blank">https://app.birdweather.com/account/stations</a><br>
         Make sure that the Latitude and Longitude match what is in your BirdNET-Pi configuration.
         <br><br>
-        <dt>NOTE - by using your BirdWeather ID - you are consenting to sharing your soundscapes and detections with BirdWeather</dt></p>
+        <dt>NOTE - by using your BirdWeather Token - you are consenting to sharing your soundscapes and detections with BirdWeather</dt></p>
       </td></tr></table><br>
       <table class="settingstable" style="width:100%"><tr><td>
       <h2>Notifications</h2>
@@ -564,7 +549,8 @@ https://discordapp.com/api/webhooks/{WebhookID}/{WebhookToken}
           "ar" => "Arabic",
           "ca" => "Catalan",
           "cs" => "Czech",
-          "zh" => "Chinese",
+          "zh_CN" => "Chinese (simplified)",
+          "zh_TW" => "Chinese (traditional)",
           "hr" => "Croatian",
           "da" => "Danish",
           "nl" => "Dutch",
@@ -593,7 +579,8 @@ https://discordapp.com/api/webhooks/{WebhookID}/{WebhookToken}
           "sv" => "Swedish",
           "th" => "Thai",
           "tr" => "Turkish",
-          "uk" => "Ukrainian"
+          "uk" => "Ukrainian",
+          "vi" => "Vietnamese"
         );
 
         // Create options for each language
